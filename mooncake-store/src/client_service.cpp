@@ -599,8 +599,9 @@ void Client::LeaderMonitorThreadMain() {
         auto view_change = leader_coordinator_->WaitForViewChange(
             known_version, kViewChangeTimeout);
         if (!view_change) {
-            LOG(WARNING) << "Failed to wait for leader view change: "
-                         << toString(view_change.error());
+            LOG_EVERY_T(WARNING, 30)
+                << "Failed to wait for leader view change: "
+                << toString(view_change.error());
             std::this_thread::sleep_for(kErrorRetryInterval);
             continue;
         }
@@ -611,9 +612,10 @@ void Client::LeaderMonitorThreadMain() {
 
         auto err = SwitchLeader(view_change->current_view.value());
         if (err != ErrorCode::OK) {
-            LOG(WARNING) << "Failed to switch to leader "
-                         << view_change->current_view->leader_address << ": "
-                         << toString(err);
+            LOG_EVERY_T(WARNING, 30)
+                << "Failed to switch to leader "
+                << view_change->current_view->leader_address << ": "
+                << toString(err);
             std::this_thread::sleep_for(kErrorRetryInterval);
         }
     }
@@ -3786,7 +3788,7 @@ void Client::StorageHeartbeatThreadMain() {
         ping_fail_count++;
         last_ping_success_.store(false);
         if (ping_fail_count < max_ping_fail_count) {
-            LOG(ERROR) << "Failed to ping master";
+            LOG_EVERY_T(ERROR, 30) << "Failed to ping master";
             std::this_thread::sleep_for(
                 std::chrono::milliseconds(fail_ping_interval_ms));
             continue;
@@ -3799,14 +3801,15 @@ void Client::StorageHeartbeatThreadMain() {
                 << " times; fetching latest master view and reconnecting";
             auto current_view = leader_coordinator_->ReadCurrentView();
             if (!current_view) {
-                LOG(ERROR) << "Failed to get new master view: "
-                           << toString(current_view.error());
+                LOG_EVERY_T(ERROR, 30) << "Failed to get new master view: "
+                                       << toString(current_view.error());
                 std::this_thread::sleep_for(
                     std::chrono::milliseconds(fail_ping_interval_ms));
                 continue;
             }
             if (!current_view.value().has_value()) {
-                LOG(WARNING) << "No active master view is published yet";
+                LOG_EVERY_T(WARNING, 30)
+                    << "No active master view is published yet";
                 std::this_thread::sleep_for(
                     std::chrono::milliseconds(fail_ping_interval_ms));
                 continue;
@@ -3815,8 +3818,9 @@ void Client::StorageHeartbeatThreadMain() {
             const auto& next_view = current_view.value().value();
             auto err = SwitchLeader(next_view);
             if (err != ErrorCode::OK) {
-                LOG(ERROR) << "Failed to connect to master "
-                           << next_view.leader_address << ": " << toString(err);
+                LOG_EVERY_T(ERROR, 30)
+                    << "Failed to connect to master "
+                    << next_view.leader_address << ": " << toString(err);
                 std::this_thread::sleep_for(
                     std::chrono::milliseconds(fail_ping_interval_ms));
                 continue;
@@ -3826,13 +3830,15 @@ void Client::StorageHeartbeatThreadMain() {
             ping_fail_count = 0;
         } else {
             const std::string current_master_address = direct_master_address_;
-            LOG(ERROR) << "Failed to ping master for " << ping_fail_count
-                       << " times (non-HA); reconnecting to "
-                       << current_master_address;
+            LOG_EVERY_T(ERROR, 30)
+                << "Failed to ping master for " << ping_fail_count
+                << " times (non-HA); reconnecting to "
+                << current_master_address;
             auto err = master_client_.Connect(current_master_address);
             if (err != ErrorCode::OK) {
-                LOG(ERROR) << "Reconnect failed to " << current_master_address
-                           << ": " << toString(err);
+                LOG_EVERY_T(ERROR, 30)
+                    << "Reconnect failed to " << current_master_address << ": "
+                    << toString(err);
                 std::this_thread::sleep_for(
                     std::chrono::milliseconds(fail_ping_interval_ms));
                 continue;
